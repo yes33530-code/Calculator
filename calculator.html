@@ -1550,7 +1550,7 @@ async function handleLeadSubmit(e) {
   const { fv, P, PMT, termMonths } = appState.results || {};
 
   try {
-    const res = await fetch('/api/leads', {
+    const res = await fetch('https://calculator-production-8061.up.railway.app/api/leads', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
