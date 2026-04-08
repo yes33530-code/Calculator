@@ -1588,12 +1588,27 @@ async function handleLeadSubmit(e) {
 }
 
 // ── PDF GENERATION ────────────────────────────────────────────────────────────
-function triggerPdfDownload() {
+async function loadFontBase64(url) {
+  const res = await fetch(url);
+  const buf = await res.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+async function triggerPdfDownload() {
   const btn = document.getElementById('btn-download');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Формируем PDF...';
 
   try {
+    const FONT_BASE = 'https://calculator-production-8061.up.railway.app/fonts';
+    const [robotoRegular, robotoBold] = await Promise.all([
+      loadFontBase64(FONT_BASE + '/roboto.ttf'),
+      loadFontBase64(FONT_BASE + '/roboto-bold.ttf')
+    ]);
+
     const { jsPDF } = window.jspdf;
     const { fv, invested, scenFVs, termMonths, P, PMT, ttgMonths } = appState.results;
     const { goal, currency, eliteRate, mode, targetAmount } = appState;
@@ -1602,6 +1617,13 @@ function triggerPdfDownload() {
     const dateStr = new Date().toLocaleDateString('ru-RU');
 
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+    // Register Cyrillic-capable fonts
+    pdf.addFileToVFS('Roboto-Regular.ttf', robotoRegular);
+    pdf.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+    pdf.addFileToVFS('Roboto-Bold.ttf', robotoBold);
+    pdf.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+
     const W = pdf.internal.pageSize.getWidth();
     const H = pdf.internal.pageSize.getHeight();
     const M = 20;
@@ -1620,13 +1642,13 @@ function triggerPdfDownload() {
       pdf.setLineWidth(0.3);
       // Logo text
       pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('Roboto', 'bold');
       pdf.setTextColor(255, 255, 255);
       pdf.text('ELITE', M + 7, 17);
       pdf.text('INVEST', M + 7, 23);
       // Date
       pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('Roboto', 'normal');
       pdf.setTextColor(136, 136, 136);
       pdf.text(dateStr, W - M, 17, { align: 'right' });
       // Divider
@@ -1644,7 +1666,7 @@ function triggerPdfDownload() {
 
     // Page title
     pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Roboto', 'normal');
     pdf.setTextColor(136, 136, 136);
     pdf.text('Персональный инвестиционный расчёт', M, 37);
 
@@ -1659,24 +1681,24 @@ function triggerPdfDownload() {
     pdf.setLineWidth(0.3);
 
     pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text((GOAL_LABELS[goal] || 'ИНВЕСТИЦИИ').toUpperCase(), M + 6, y + 8);
 
     pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Roboto', 'normal');
     pdf.setTextColor(136, 136, 136);
     pdf.text('ВАШ КАПИТАЛ С ELITE INVEST', M + 6, y + 15);
 
     pdf.setFontSize(28);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text(fmt(fv.elite), M + 6, y + 27);
 
     const profit = fv.elite - invested;
     const pct = invested > 0 ? ((profit / invested) * 100).toFixed(0) : 0;
     pdf.setFontSize(8.5);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Roboto', 'normal');
     pdf.setTextColor(136, 136, 136);
     pdf.text(`Вложено: ${fmt(invested)}   Прибыль: +${fmt(profit)} (+${pct}%)`, M + 6, y + 35);
 
@@ -1695,7 +1717,7 @@ function triggerPdfDownload() {
 
     // Section: Comparison
     pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text('СРАВНЕНИЕ ИНСТРУМЕНТОВ', M, y);
     y += 5;
@@ -1706,7 +1728,7 @@ function triggerPdfDownload() {
     // Table header
     const cols = [M, M + 65, M + 105, M + 145];
     pdf.setFontSize(7.5);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(100, 100, 100);
     pdf.text('Инструмент', cols[0], y);
     pdf.text('Ставка', cols[1], y);
@@ -1722,10 +1744,10 @@ function triggerPdfDownload() {
     pdf.setFillColor(30, 18, 10);
     pdf.rect(M, y - 4, W - M * 2, 8, 'F');
     pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text('Elite Invest', cols[0], y);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Roboto', 'normal');
     pdf.text(`${Math.round(eliteEffectiveRate() * 100)}% год.`, cols[1], y);
     pdf.text(fmt(fv.elite), cols[2], y);
     pdf.text('+' + fmt(profit), cols[3], y);
@@ -1733,7 +1755,7 @@ function triggerPdfDownload() {
 
     // Bank row
     pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Roboto', 'normal');
     pdf.setTextColor(170, 170, 170);
     pdf.text('Банковский депозит', cols[0], y);
     pdf.text('15% год.', cols[1], y);
@@ -1754,7 +1776,7 @@ function triggerPdfDownload() {
 
     // Parameters
     pdf.setFontSize(8);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text('ПАРАМЕТРЫ РАСЧЁТА', M, y);
     y += 6;
@@ -1771,7 +1793,7 @@ function triggerPdfDownload() {
 
     params.forEach(([k, v]) => {
       pdf.setFontSize(8.5);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('Roboto', 'normal');
       pdf.setTextColor(136, 136, 136);
       pdf.text(k, M, y);
       pdf.setTextColor(200, 200, 200);
@@ -1786,7 +1808,7 @@ function triggerPdfDownload() {
       pdf.line(M, y, W - M, y);
       y += 7;
       pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'bold');
+      pdf.setFont('Roboto', 'bold');
       pdf.setTextColor(232, 84, 26);
       pdf.text('СЦЕНАРИИ ДОХОДНОСТИ', M, y);
       y += 6;
@@ -1796,7 +1818,7 @@ function triggerPdfDownload() {
         ['Оптимистичный (×1.2):', scenFVs.optimistic]
       ].forEach(([k, v]) => {
         pdf.setFontSize(8.5);
-        pdf.setFont('helvetica', 'normal');
+        pdf.setFont('Roboto', 'normal');
         pdf.setTextColor(136, 136, 136);
         pdf.text(k, M, y);
         pdf.setTextColor(200, 200, 200);
@@ -1811,13 +1833,13 @@ function triggerPdfDownload() {
 
     let y2 = 45;
     pdf.setFontSize(18);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(255, 255, 255);
     pdf.text('Следующий шаг', M, y2);
     y2 += 12;
 
     pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Roboto', 'normal');
     pdf.setTextColor(136, 136, 136);
     const ctaText = 'Свяжитесь с нашим специалистом для бесплатной\nконсультации по вашему сценарию инвестирования.';
     pdf.text(ctaText, M, y2);
@@ -1827,7 +1849,7 @@ function triggerPdfDownload() {
     pdf.setFillColor(37, 211, 102);
     pdf.roundedRect(M, y2, 80, 12, 2, 2, 'F');
     pdf.setFontSize(10);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(255, 255, 255);
     pdf.text('WhatsApp: +996 888 222 228', M + 5, y2 + 8);
 
@@ -1838,7 +1860,7 @@ function triggerPdfDownload() {
 
     // Why Elite Invest
     pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Roboto', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text('Почему Elite Invest?', M, y2);
     y2 += 9;
@@ -1854,7 +1876,7 @@ function triggerPdfDownload() {
       pdf.setFillColor(232, 84, 26);
       pdf.circle(M + 2, y2 - 1.5, 1, 'F');
       pdf.setFontSize(9.5);
-      pdf.setFont('helvetica', 'normal');
+      pdf.setFont('Roboto', 'normal');
       pdf.setTextColor(200, 200, 200);
       pdf.text(b, M + 6, y2);
       y2 += 8;

@@ -94,6 +94,11 @@ def index():
     return send_from_directory(str(BASE_DIR), "calculator.html")
 
 
+@app.route("/fonts/<path:filename>")
+def serve_font(filename):
+    return send_from_directory(str(BASE_DIR / "fonts"), filename)
+
+
 @app.route("/health")
 def health():
     try:
