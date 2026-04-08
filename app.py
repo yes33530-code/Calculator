@@ -5,11 +5,13 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from functools import wraps
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__)
+CORS(app)
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "elite_invest.db"
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
