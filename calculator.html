@@ -947,8 +947,8 @@
       <div class="next-steps">
         <p class="next-steps-label">Следующий шаг</p>
         <p>Свяжитесь с нашим специалистом для бесплатной консультации по вашему сценарию.</p>
-        <a href="https://t.me/eliteinvest" class="tg-link" target="_blank" rel="noopener" onclick="trackEvent('tg_link_click');">
-          <span>✈</span> Написать в Telegram
+        <a href="https://wa.me/996888222228" class="tg-link" target="_blank" rel="noopener" onclick="trackEvent('wa_link_click');">
+          <span>💬</span> Написать в WhatsApp
         </a>
       </div>
 
@@ -1588,14 +1588,14 @@ async function handleLeadSubmit(e) {
 }
 
 // ── PDF GENERATION ────────────────────────────────────────────────────────────
-async function triggerPdfDownload() {
+function triggerPdfDownload() {
   const btn = document.getElementById('btn-download');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Формируем PDF...';
 
   try {
     const { jsPDF } = window.jspdf;
-    const { fv, invested, scenFVs, termMonths, P, PMT } = appState.results;
+    const { fv, invested, scenFVs, termMonths, P, PMT, ttgMonths } = appState.results;
     const { goal, currency, eliteRate, mode, targetAmount } = appState;
     const sym = CURRENCY_SYMBOLS[currency];
     const fmt = n => sym + Math.round(n).toLocaleString('ru-RU');
@@ -1604,199 +1604,261 @@ async function triggerPdfDownload() {
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = pdf.internal.pageSize.getWidth();
     const H = pdf.internal.pageSize.getHeight();
-    const M = 20; // margin
+    const M = 20;
 
-    // ── Page 1 ──────────────────────────────────────────────
-    // Background
-    pdf.setFillColor(10, 10, 10);
-    pdf.rect(0, 0, W, H, 'F');
+    const disclaimer = '* Расчёты носят информационный характер и не являются публичной офертой, гарантией доходности или финансовым советом.';
 
-    // Orange accent bar
-    pdf.setFillColor(232, 84, 26);
-    pdf.rect(0, 0, W, 4, 'F');
+    function drawPage() {
+      pdf.setFillColor(10, 10, 10);
+      pdf.rect(0, 0, W, H, 'F');
+      pdf.setFillColor(232, 84, 26);
+      pdf.rect(0, 0, W, 4, 'F');
+      // Logo slash (drawn as thick line)
+      pdf.setDrawColor(232, 84, 26);
+      pdf.setLineWidth(2);
+      pdf.line(M + 4, 13, M, 23);
+      pdf.setLineWidth(0.3);
+      // Logo text
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('ELITE', M + 7, 17);
+      pdf.text('INVEST', M + 7, 23);
+      // Date
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(136, 136, 136);
+      pdf.text(dateStr, W - M, 17, { align: 'right' });
+      // Divider
+      pdf.setDrawColor(36, 36, 36);
+      pdf.line(M, 28, W - M, 28);
+      // Footer disclaimer
+      pdf.setFontSize(6.5);
+      pdf.setTextColor(60, 60, 60);
+      const disc = pdf.splitTextToSize(disclaimer, W - M * 2);
+      pdf.text(disc, M, H - 8);
+    }
 
-    // Header
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFontSize(26);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('ELITE INVEST', M, 22);
+    // ── PAGE 1 ────────────────────────────────────────────────────────────────
+    drawPage();
 
+    // Page title
     pdf.setFontSize(11);
     pdf.setFont('helvetica', 'normal');
     pdf.setTextColor(136, 136, 136);
-    pdf.text('Персональный инвестиционный расчёт', M, 30);
-    pdf.text('Дата: ' + dateStr, W - M, 30, { align: 'right' });
+    pdf.text('Персональный инвестиционный расчёт', M, 37);
 
-    // Divider
-    pdf.setDrawColor(36, 36, 36);
+    let y = 48;
+
+    // Main result hero block
+    pdf.setFillColor(20, 20, 20);
+    pdf.roundedRect(M, y, W - M * 2, 42, 3, 3, 'F');
+    pdf.setDrawColor(232, 84, 26);
+    pdf.setLineWidth(0.4);
+    pdf.roundedRect(M, y, W - M * 2, 42, 3, 3, 'S');
     pdf.setLineWidth(0.3);
-    pdf.line(M, 36, W - M, 36);
 
-    // Capture results card from DOM
-    const resultsEl = document.getElementById('results-card');
-    const canvas = await html2canvas(resultsEl, {
-      backgroundColor: '#0a0a0a',
-      scale: 2,
-      useCORS: true,
-      logging: false
-    });
-    const imgData = canvas.toDataURL('image/png');
-    const imgW = W - M * 2;
-    const imgH = Math.min((canvas.height / canvas.width) * imgW, 80);
-    pdf.addImage(imgData, 'PNG', M, 42, imgW, imgH);
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text((GOAL_LABELS[goal] || 'ИНВЕСТИЦИИ').toUpperCase(), M + 6, y + 8);
 
-    let y = 42 + imgH + 10;
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(136, 136, 136);
+    pdf.text('ВАШ КАПИТАЛ С ELITE INVEST', M + 6, y + 15);
 
-    // Divider
+    pdf.setFontSize(28);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text(fmt(fv.elite), M + 6, y + 27);
+
+    const profit = fv.elite - invested;
+    const pct = invested > 0 ? ((profit / invested) * 100).toFixed(0) : 0;
+    pdf.setFontSize(8.5);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(136, 136, 136);
+    pdf.text(`Вложено: ${fmt(invested)}   Прибыль: +${fmt(profit)} (+${pct}%)`, M + 6, y + 35);
+
+    // Time to goal
+    if (ttgMonths && ttgMonths !== Infinity && ttgMonths > 0 && targetAmount) {
+      const yrs = Math.floor(ttgMonths / 12);
+      const mos = Math.round(ttgMonths % 12);
+      const parts = [];
+      if (yrs > 0) parts.push(yrs + ' лет');
+      if (mos > 0) parts.push(mos + ' мес.');
+      pdf.setTextColor(200, 200, 200);
+      pdf.text(`Цель ${fmt(targetAmount)} достижима за ${parts.join(' ')}`, M + 6, y + 41);
+    }
+
+    y += 52;
+
+    // Section: Comparison
+    pdf.setFontSize(8);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text('СРАВНЕНИЕ ИНСТРУМЕНТОВ', M, y);
+    y += 5;
+    pdf.setDrawColor(36, 36, 36);
+    pdf.line(M, y, W - M, y);
+    y += 7;
+
+    // Table header
+    const cols = [M, M + 65, M + 105, M + 145];
+    pdf.setFontSize(7.5);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(100, 100, 100);
+    pdf.text('Инструмент', cols[0], y);
+    pdf.text('Ставка', cols[1], y);
+    pdf.text('Итого', cols[2], y);
+    pdf.text('Прибыль', cols[3], y);
+    y += 4;
+    pdf.setDrawColor(36, 36, 36);
+    pdf.line(M, y, W - M, y);
+    y += 6;
+
+    // Elite row (highlighted)
+    pdf.setFillColor(232, 84, 26, 0.1);
+    pdf.setFillColor(30, 18, 10);
+    pdf.rect(M, y - 4, W - M * 2, 8, 'F');
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text('Elite Invest', cols[0], y);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`${Math.round(eliteEffectiveRate() * 100)}% год.`, cols[1], y);
+    pdf.text(fmt(fv.elite), cols[2], y);
+    pdf.text('+' + fmt(profit), cols[3], y);
+    y += 9;
+
+    // Bank row
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(170, 170, 170);
+    pdf.text('Банковский депозит', cols[0], y);
+    pdf.text('15% год.', cols[1], y);
+    pdf.text(fmt(fv.bank), cols[2], y);
+    pdf.text('+' + fmt(fv.bank - invested), cols[3], y);
+    y += 8;
+
+    // Apartment row
+    pdf.text('Квартира под аренду', cols[0], y);
+    pdf.text('8%+5% год.', cols[1], y);
+    pdf.text(fmt(fv.apt), cols[2], y);
+    pdf.text('+' + fmt(fv.apt - invested), cols[3], y);
+    y += 10;
+
     pdf.setDrawColor(36, 36, 36);
     pdf.line(M, y, W - M, y);
     y += 8;
 
-    // Parameters summary
-    pdf.setFontSize(9);
+    // Parameters
+    pdf.setFontSize(8);
     pdf.setFont('helvetica', 'bold');
     pdf.setTextColor(232, 84, 26);
     pdf.text('ПАРАМЕТРЫ РАСЧЁТА', M, y);
     y += 6;
 
-    pdf.setFont('helvetica', 'normal');
-    pdf.setTextColor(170, 170, 170);
     const params = [
       ['Цель:', GOAL_LABELS[goal] || goal],
-      ['Режим:', mode === 'advanced' ? 'Продвинутый' : 'Простой'],
-      ['Валюта:', currency],
       ['Начальная сумма:', fmt(P)],
-      ['Ежемесячное пополнение:', fmt(PMT)],
-      ['Срок:', termMonths + ' мес. (' + (termMonths/12).toFixed(1) + ' лет)'],
-      ['Ставка Elite Invest:', Math.round(eliteRate * 100) + '% годовых'],
+      ['Ежемес. пополнение:', fmt(PMT)],
+      ['Срок:', `${termMonths} мес. (${(termMonths/12).toFixed(1)} лет)`],
+      ['Ставка Elite Invest:', `${Math.round(eliteRate * 100)}% годовых`],
+      ['Валюта:', currency],
       ...(targetAmount ? [['Целевая сумма:', fmt(targetAmount)]] : [])
     ];
+
     params.forEach(([k, v]) => {
+      pdf.setFontSize(8.5);
+      pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(136, 136, 136);
       pdf.text(k, M, y);
       pdf.setTextColor(200, 200, 200);
-      pdf.text(v, M + 60, y);
-      y += 5.5;
-    });
-
-    y += 4;
-    pdf.setDrawColor(36, 36, 36);
-    pdf.line(M, y, W - M, y);
-    y += 8;
-
-    // Results comparison table
-    pdf.setFontSize(9);
-    pdf.setFont('helvetica', 'bold');
-    pdf.setTextColor(232, 84, 26);
-    pdf.text('СРАВНЕНИЕ РЕЗУЛЬТАТОВ', M, y);
-    y += 6;
-
-    const profit = fv.elite - invested;
-    const rows = [
-      ['Инструмент', 'Итоговая сумма', 'Прибыль'],
-      ['Elite Invest', fmt(fv.elite), fmt(profit)],
-      ['Банковский депозит', fmt(fv.bank), fmt(fv.bank - invested)],
-      ['Квартира под аренду', fmt(fv.apt), fmt(fv.apt - invested)]
-    ];
-
-    const colWidths = [70, 45, 45];
-    const colX = [M, M + colWidths[0], M + colWidths[0] + colWidths[1]];
-
-    rows.forEach((row, ri) => {
-      if (ri === 0) {
-        pdf.setTextColor(100, 100, 100);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(8);
-      } else {
-        pdf.setFont('helvetica', 'normal');
-        pdf.setFontSize(9);
-        if (ri === 1) {
-          pdf.setTextColor(232, 84, 26); // highlight elite
-        } else {
-          pdf.setTextColor(170, 170, 170);
-        }
-      }
-      row.forEach((cell, ci) => pdf.text(cell, colX[ci], y));
-      y += ri === 0 ? 5 : 6.5;
+      pdf.text(v, M + 65, y);
+      y += 6;
     });
 
     // Scenarios (advanced)
     if (mode === 'advanced') {
-      y += 4;
+      y += 2;
       pdf.setDrawColor(36, 36, 36);
       pdf.line(M, y, W - M, y);
-      y += 8;
-      pdf.setFontSize(9);
+      y += 7;
+      pdf.setFontSize(8);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(232, 84, 26);
       pdf.text('СЦЕНАРИИ ДОХОДНОСТИ', M, y);
       y += 6;
-      const scenRows = [
-        ['Консервативный (×0.7):', fmt(scenFVs.conservative)],
-        ['Базовый (×1.0):', fmt(scenFVs.base)],
-        ['Оптимистичный (×1.2):', fmt(scenFVs.optimistic)]
-      ];
-      scenRows.forEach(([k, v]) => {
+      [
+        ['Консервативный (×0.7):', scenFVs.conservative],
+        ['Базовый (×1.0):', scenFVs.base],
+        ['Оптимистичный (×1.2):', scenFVs.optimistic]
+      ].forEach(([k, v]) => {
+        pdf.setFontSize(8.5);
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(136, 136, 136);
         pdf.text(k, M, y);
         pdf.setTextColor(200, 200, 200);
-        pdf.text(v, M + 75, y);
-        y += 5.5;
+        pdf.text(fmt(v), M + 80, y);
+        y += 6;
       });
     }
 
-    // Disclaimer
-    pdf.setPage(1);
-    pdf.setFontSize(7);
-    pdf.setTextColor(60, 60, 60);
+    // ── PAGE 2: CTA ───────────────────────────────────────────────────────────
+    pdf.addPage();
+    drawPage();
+
+    let y2 = 45;
+    pdf.setFontSize(18);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('Следующий шаг', M, y2);
+    y2 += 12;
+
+    pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
-    const disclaimer = '* Расчёты носят информационный характер и не являются публичной офертой, гарантией доходности или финансовым советом. Итоговый результат зависит от условий конкретного проекта и рыночной конъюнктуры.';
-    const discLines = pdf.splitTextToSize(disclaimer, W - M * 2);
-    pdf.text(discLines, M, H - 10);
+    pdf.setTextColor(136, 136, 136);
+    const ctaText = 'Свяжитесь с нашим специалистом для бесплатной\nконсультации по вашему сценарию инвестирования.';
+    pdf.text(ctaText, M, y2);
+    y2 += 20;
 
-    // ── Page 2: Chart ─────────────────────────────────────────────────────────
-    const chartCanvas = document.getElementById('growth-chart');
-    if (chartCanvas) {
-      pdf.addPage();
-      pdf.setFillColor(10, 10, 10);
-      pdf.rect(0, 0, W, H, 'F');
+    // WhatsApp button block
+    pdf.setFillColor(37, 211, 102);
+    pdf.roundedRect(M, y2, 80, 12, 2, 2, 'F');
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(255, 255, 255);
+    pdf.text('WhatsApp: +996 888 222 228', M + 5, y2 + 8);
+
+    y2 += 22;
+    pdf.setDrawColor(36, 36, 36);
+    pdf.line(M, y2, W - M, y2);
+    y2 += 10;
+
+    // Why Elite Invest
+    pdf.setFontSize(12);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text('Почему Elite Invest?', M, y2);
+    y2 += 9;
+
+    const bullets = [
+      `В ${(fv.elite / Math.max(fv.bank, 1)).toFixed(1)}x больше, чем банковский депозит за тот же срок`,
+      'Профессиональное управление активами',
+      'Прозрачная отчётность и контроль',
+      'Персональный менеджер для каждого клиента'
+    ];
+
+    bullets.forEach(b => {
       pdf.setFillColor(232, 84, 26);
-      pdf.rect(0, 0, W, 4, 'F');
-
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(255, 255, 255);
-      pdf.text('ГРАФИК РОСТА КАПИТАЛА', M, 22);
-
-      pdf.setFontSize(9);
-      pdf.setFont('helvetica', 'normal');
-      pdf.setTextColor(136, 136, 136);
-      pdf.text('Динамика по трём инструментам за весь период', M, 30);
-
-      const chartImg = chartCanvas.toDataURL('image/png');
-      const cImgW = W - M * 2;
-      const cImgH = (chartCanvas.height / chartCanvas.width) * cImgW;
-      pdf.addImage(chartImg, 'PNG', M, 38, cImgW, Math.min(cImgH, 120));
-
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(232, 84, 26);
-      pdf.text('Следующий шаг', M, 175);
-      pdf.setFontSize(10);
+      pdf.circle(M + 2, y2 - 1.5, 1, 'F');
+      pdf.setFontSize(9.5);
       pdf.setFont('helvetica', 'normal');
       pdf.setTextColor(200, 200, 200);
-      pdf.text('Свяжитесь с нашим специалистом для бесплатной консультации', M, 183);
-      pdf.text('по вашему сценарию инвестирования.', M, 190);
-
-      pdf.setTextColor(232, 84, 26);
-      pdf.text('Telegram: @eliteinvest', M, 200);
-
-      pdf.setFontSize(7);
-      pdf.setTextColor(60, 60, 60);
-      const discLines2 = pdf.splitTextToSize(disclaimer, W - M * 2);
-      pdf.text(discLines2, M, H - 10);
-    }
+      pdf.text(b, M + 6, y2);
+      y2 += 8;
+    });
 
     const dateFile = new Date().toISOString().slice(0, 10);
     pdf.save(`EliteInvest_Расчёт_${dateFile}.pdf`);
