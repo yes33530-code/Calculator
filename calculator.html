@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elite Invest — Калькулятор инвестиций</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- jsPDF + html2canvas for PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange:        #E8541A;
+      --orange-dim:    rgba(232, 84, 26, 0.15);
+      --orange-glow:   rgba(232, 84, 26, 0.35);
+      --bg:            #0a0a0a;
+      --card:          #141414;
+      --card-featured: #181818;
+      --text:          #ffffff;
+      --text-muted:    #888888;
+      --border:        #242424;
+      --border-featured: #E8541A;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── SCREENS ── */
+    .screen { display: none; flex-direction: column; min-height: 100vh; }
+    .screen.active { display: flex; }
+
+    /* ── HEADER ── */
+    header {
+      padding: 24px 40px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-slash { display: block; width: 22px; height: 36px; }
+    .logo-text { display: flex; flex-direction: column; line-height: 1; }
+    .logo-text span { font-size: 20px; font-weight: 900; letter-spacing: 0.06em; color: var(--text); text-transform: uppercase; }
+
+    .header-badge {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--orange); background: var(--orange-dim); border: 1px solid rgba(232,84,26,0.3);
+      padding: 5px 10px; border-radius: 8px;
+    }
+
+    /* ── SCREEN HEADER (back + step) ── */
+    .screen-nav {
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .back-btn {
+      background: none; border: none; color: var(--text-muted); font-size: 14px;
+      cursor: pointer; font-family: inherit; padding: 8px 0; display: flex; align-items: center; gap: 6px;
+    }
+    .back-btn:hover { color: var(--text); }
+
+    .step-indicator { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
+    /* ── STEP DOTS ── */
+    .step-dots { display: flex; gap: 6px; justify-content: center; padding: 20px 0 0; }
+    .step-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
+    .step-dot.active { background: var(--orange); width: 20px; border-radius: 3px; }
+    .step-dot.done { background: var(--orange); opacity: 0.5; }
+
+    /* ── CONTENT AREA ── */
+    .content {
+      flex: 1;
+      padding: 40px 40px 60px;
+      max-width: 680px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .screen-title {
+      font-size: clamp(26px, 5vw, 40px);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .screen-title em { font-style: normal; color: var(--orange); }
+
+    .screen-subtitle { color: var(--text-muted); font-size: 15px; line-height: 1.6; margin-bottom: 36px; }
+
+    /* ── HERO (Screen 1) ── */
+    .hero-tag {
+      display: inline-block; background: var(--orange-dim); color: var(--orange);
+      font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 6px 14px; border-radius: 100px; margin-bottom: 24px;
+      border: 1px solid rgba(232,84,26,0.3);
+    }
+
+    /* ── MODE SELECTOR ── */
+    .mode-selector { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 32px 0; }
+
+    .mode-btn {
+      background: var(--card); border: 2px solid var(--border); border-radius: 16px;
+      padding: 24px 20px; cursor: pointer; text-align: left; transition: all 0.2s; width: 100%;
+    }
+    .mode-btn:hover { border-color: #444; }
+    .mode-btn.active { border-color: var(--orange); box-shadow: 0 0 24px var(--orange-glow); }
+
+    .mode-icon { font-size: 28px; display: block; margin-bottom: 12px; }
+    .mode-title { font-size: 17px; font-weight: 800; color: var(--text); display: block; margin-bottom: 6px; }
+    .mode-desc { font-size: 13px; color: var(--text-muted); display: block; line-height: 1.4; }
+
+    /* ── GOAL CARDS ── */
+    .goals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 32px; }
+
+    .goal-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 20px 16px; cursor: pointer; text-align: left; transition: all 0.2s; width: 100%;
+    }
+    .goal-card:hover { border-color: #444; }
+    .goal-card.active { border-color: var(--orange); background: var(--orange-dim); }
+
+    .goal-icon { font-size: 28px; display: block; margin-bottom: 10px; }
+    .goal-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.3; }
+
+    /* ── FIELD GROUPS ── */
+    .field-group { margin-bottom: 24px; }
+    .field-group label { display: block; font-size: 14px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+
+    .optional { font-weight: 400; color: #555; }
+
+    .input-wrap {
+      display: flex; align-items: stretch;
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; transition: border-color 0.2s;
+    }
+    .input-wrap:focus-within { border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-dim); }
+    .input-wrap.error { border-color: #e53e3e; }
+
+    .input-prefix {
+      padding: 0 16px; background: #1e1e1e; color: var(--orange); font-size: 18px;
+      font-weight: 700; border-right: 1px solid var(--border); display: flex; align-items: center;
+      flex-shrink: 0;
+    }
+
+    .field-input {
+      flex: 1; background: transparent; border: none; outline: none; color: var(--text);
+      font-size: 20px; font-weight: 700; padding: 16px; width: 100%; font-family: inherit;
+    }
+    .field-input::placeholder { color: #444; }
+    .field-input::-webkit-outer-spin-button, .field-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .field-input[type=number] { -moz-appearance: textfield; }
+
+    .field-hint { font-size: 12px; color: var(--text-muted); margin-top: 8px; line-height: 1.5; }
+    .field-error { font-size: 12px; color: #e53e3e; margin-top: 6px; display: none; }
+    .field-error.visible { display: block; }
+
+    /* ── CURRENCY TOGGLE ── */
+    .currency-toggle { display: flex; gap: 8px; margin-bottom: 28px; }
+    .curr-btn {
+      background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
+      font-family: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px;
+      border-radius: 100px; cursor: pointer; transition: all 0.2s;
+    }
+    .curr-btn.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+
+    /* ── DURATION BUTTONS ── */
+    .dur-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+    .dur-btn {
+      background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
+      font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px;
+      border-radius: 100px; cursor: pointer; transition: all 0.2s;
+    }
+    .dur-btn:hover { border-color: #444; color: var(--text); }
+    .dur-btn.active { background: var(--orange); border-color: var(--orange); color: #fff; box-shadow: 0 0 12px var(--orange-glow); }
+
+    /* ── ADVANCED: SLIDER ── */
+    .slider-wrap { display: flex; align-items: center; gap: 16px; }
+    input[type="range"] { flex: 1; accent-color: var(--orange); cursor: pointer; height: 4px; }
+    .slider-val { font-size: 18px; font-weight: 800; color: var(--orange); min-width: 52px; text-align: right; }
+
+    /* ── ADVANCED: SCENARIO TOGGLE ── */
+    .scen-wrap { display: flex; gap: 8px; flex-wrap: wrap; }
+    .scen-btn {
+      background: var(--card); border: 1px solid var(--border); color: var(--text-muted);
+      font-family: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px;
+      border-radius: 100px; cursor: pointer; transition: all 0.2s;
+    }
+    .scen-btn.active { background: var(--orange); border-color: var(--orange); color: #fff; }
+
+    /* ── ADVANCED: SELECT ── */
+    .field-select {
+      width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      color: var(--text); font-family: inherit; font-size: 15px; font-weight: 600;
+      padding: 14px 16px; outline: none; cursor: pointer;
+    }
+    .field-select:focus { border-color: var(--orange); }
+
+    /* ── ADVANCED: TOGGLE SWITCH ── */
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; }
+    .toggle-label-text { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+    .toggle-switch { position: relative; width: 44px; height: 24px; cursor: pointer; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0; border-radius: 12px; background: var(--border);
+      transition: background 0.2s;
+    }
+    .toggle-switch input:checked ~ .toggle-track { background: var(--orange); }
+    .toggle-thumb {
+      position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+      top: 2px; left: 2px; transition: transform 0.2s;
+    }
+    .toggle-switch input:checked ~ .toggle-thumb { transform: translateX(20px); }
+
+    /* ── BUTTONS ── */
+    .btn-primary {
+      width: 100%; padding: 18px; background: var(--orange); color: #fff; border: none;
+      border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
+      transition: opacity 0.2s; margin-top: 8px;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+    .btn-secondary {
+      width: 100%; padding: 16px; background: transparent; color: var(--orange);
+      border: 1px solid var(--orange); border-radius: 12px; font-size: 15px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.2s; margin-top: 10px;
+    }
+    .btn-secondary:hover { background: var(--orange-dim); }
+
+    .btn-ghost {
+      width: 100%; padding: 14px; background: transparent; color: var(--text-muted);
+      border: none; font-size: 14px; cursor: pointer; font-family: inherit; margin-top: 8px;
+    }
+    .btn-ghost:hover { color: var(--text); }
+
+    /* ── SECTION LABEL ── */
+    .section-label {
+      text-align: center; color: var(--text-muted); font-size: 12px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase; margin: 40px 0 24px; position: relative;
+    }
+    .section-label span { background: var(--bg); padding: 0 16px; position: relative; }
+    .section-label::before {
+      content: ''; display: block; height: 1px; background: var(--border);
+      position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+    }
+
+    /* ── RESULTS SCREEN ── */
+    .results-content { padding: 0 40px 60px; max-width: 900px; margin: 0 auto; width: 100%; }
+
+    /* Main result block */
+    .result-hero {
+      background: var(--card); border: 1px solid var(--border-featured); border-radius: 20px;
+      padding: 32px; box-shadow: 0 0 40px var(--orange-glow); margin-bottom: 16px;
+    }
+
+    .result-goal-tag {
+      display: inline-block; background: var(--orange-dim); color: var(--orange);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 5px 12px; border-radius: 100px; border: 1px solid rgba(232,84,26,0.3);
+      margin-bottom: 20px;
+    }
+
+    .result-label { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .result-fv { font-size: clamp(42px, 8vw, 72px); font-weight: 900; color: var(--orange); letter-spacing: -0.03em; line-height: 1; margin-bottom: 8px; }
+    .result-profit { font-size: 16px; color: var(--text-muted); }
+    .result-profit strong { color: #4CAF50; }
+
+    .result-extra { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .result-extra p { font-size: 14px; color: var(--text-muted); line-height: 1.7; }
+    .result-extra strong { color: var(--text); }
+
+    /* 3 Comparison Cards */
+    .cards {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px;
+      transition: transform 0.2s; position: relative;
+    }
+    .card:hover { transform: translateY(-2px); }
+
+    .card.featured {
+      background: var(--card-featured); border-color: var(--border-featured);
+      box-shadow: 0 0 32px var(--orange-glow); padding: 24px;
+    }
+    .card.featured::before {
+      content: 'Лучший результат'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--orange); color: #fff; font-size: 10px; font-weight: 800;
+      letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 12px;
+      border-radius: 100px; white-space: nowrap;
+    }
+
+    .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; font-size: 18px; }
+    .card:not(.featured) .card-icon { background: #1e1e1e; }
+    .card.featured .card-icon { background: var(--orange-dim); }
+
+    .card-name { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .card-rate { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 100px; margin-bottom: 16px; display: inline-block; }
+    .card:not(.featured) .card-rate { background: #1e1e1e; color: #aaa; border: 1px solid #2a2a2a; }
+    .card.featured .card-rate { background: var(--orange-dim); color: var(--orange); border: 1px solid rgba(232,84,26,0.4); }
+
+    .card-divider { height: 1px; background: var(--border); margin-bottom: 14px; }
+
+    .card-profit-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .card-profit { font-size: clamp(22px, 3vw, 30px); font-weight: 900; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .card:not(.featured) .card-profit { color: #ccc; }
+    .card.featured .card-profit { color: var(--orange); }
+    .card-total { font-size: 13px; color: var(--text-muted); }
+    .card-total strong { color: var(--text); font-weight: 600; }
+
+    /* Bar chart comparison */
+    .bar-section { margin-bottom: 32px; }
+    .bar-title { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 18px; }
+    .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .bar-label { width: 160px; flex-shrink: 0; font-size: 13px; color: var(--text-muted); text-align: right; }
+    .bar-track { flex: 1; height: 32px; background: #141414; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    .bar-fill {
+      height: 100%; border-radius: 8px; display: flex; align-items: center; padding-left: 12px;
+      font-size: 12px; font-weight: 700; white-space: nowrap;
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1); min-width: 70px;
+    }
+    .bar-row.bank .bar-fill       { background: #2a2a2a; color: #888; }
+    .bar-row.apartment .bar-fill  { background: #252525; color: #999; }
+    .bar-row.elite .bar-fill      { background: var(--orange); color: #fff; }
+
+    /* Chart.js canvas */
+    .chart-wrap {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px; margin-bottom: 24px;
+    }
+    .chart-wrap-title { font-size: 13px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 20px; }
+
+    /* Scenario bars (advanced mode) */
+    .scenarios-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 24px; }
+    .scen-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .scen-row:last-child { margin-bottom: 0; }
+    .scen-row-label { width: 140px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+    .scen-track { flex: 1; height: 28px; background: #1a1a1a; border-radius: 6px; overflow: hidden; }
+    .scen-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; padding-left: 12px; font-size: 12px; font-weight: 700; transition: width 0.5s; min-width: 60px; }
+    .scen-row.conservative .scen-fill { background: #2a2a2a; color: #777; }
+    .scen-row.base .scen-fill         { background: #333; color: #aaa; }
+    .scen-row.optimistic .scen-fill   { background: var(--orange); color: #fff; }
+
+    /* Disclaimer */
+    .disclaimer-sm { font-size: 11px; color: #444; line-height: 1.6; margin-bottom: 24px; }
+
+    /* Results action buttons */
+    .results-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+
+    /* ── PDF CTA SCREEN ── */
+    .cta-wrap { text-align: center; }
+    .cta-icon { font-size: 64px; margin-bottom: 24px; }
+    .cta-title { font-size: clamp(26px, 5vw, 36px); font-weight: 900; margin-bottom: 12px; line-height: 1.2; }
+    .cta-desc { font-size: 15px; color: var(--text-muted); line-height: 1.7; margin-bottom: 28px; }
+    .cta-bullets { list-style: none; text-align: left; display: inline-block; margin-bottom: 36px; }
+    .cta-bullets li { font-size: 15px; color: var(--text-muted); padding: 6px 0; }
+    .cta-bullets li::before { content: '✓ '; color: #4CAF50; font-weight: 700; }
+
+    /* ── LEAD FORM SCREEN ── */
+    .form-subtitle { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; line-height: 1.6; }
+    .privacy-note { font-size: 11px; color: #444; line-height: 1.6; margin-bottom: 16px; }
+
+    /* ── DOWNLOAD SCREEN ── */
+    .download-wrap { text-align: center; }
+    .success-badge { font-size: 64px; margin-bottom: 24px; }
+    .download-title { font-size: clamp(24px, 5vw, 36px); font-weight: 900; margin-bottom: 12px; }
+    .download-desc { font-size: 15px; color: var(--text-muted); margin-bottom: 32px; }
+    .next-steps { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-top: 24px; text-align: left; }
+    .next-steps-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+    .next-steps p { font-size: 15px; color: var(--text); margin-bottom: 16px; line-height: 1.5; }
+    .tg-link {
+      display: flex; align-items: center; gap: 10px; background: #0088cc; color: #fff;
+      border-radius: 10px; padding: 14px 20px; text-decoration: none; font-weight: 700;
+      font-size: 15px; transition: opacity 0.2s;
+    }
+    .tg-link:hover { opacity: 0.9; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border); padding: 24px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px; flex-shrink: 0;
+    }
+    footer .disclaimer { font-size: 11px; color: #444; max-width: 600px; line-height: 1.6; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes countUp {
+      from { opacity: 0.4; transform: translateY(6px); }
+      to   { opacity: 1;   transform: translateY(0); }
+    }
+    .animating { animation: countUp 0.3s ease forwards; }
+
+    /* ── SPINNER ── */
+    .spinner {
+      display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── MOBILE ── */
+    @media (max-width: 480px) {
+      header { padding: 14px 16px; }
+      .logo-slash { width: 16px; height: 26px; }
+      .logo-text span { font-size: 15px; }
+      .screen-nav { padding: 12px 16px; }
+      .content { padding: 24px 16px 48px; }
+      .results-content { padding: 0 16px 48px; }
+
+      .mode-selector { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .mode-btn { padding: 16px 14px; }
+      .mode-icon { font-size: 22px; margin-bottom: 8px; }
+      .mode-title { font-size: 14px; }
+      .mode-desc { font-size: 11px; }
+
+      .goals-grid { grid-template-columns: repeat(2, 1fr); }
+      .goal-card { padding: 14px 12px; }
+      .goal-icon { font-size: 22px; margin-bottom: 6px; }
+      .goal-title { font-size: 12px; }
+
+      .cards { grid-template-columns: 1fr; gap: 10px; }
+      .card { padding: 16px; }
+      .card.featured { padding: 16px; padding-top: 22px; }
+      .card.featured::before { font-size: 9px; }
+
+      .bar-label { width: 90px; font-size: 11px; }
+      .bar-fill { font-size: 10px; padding-left: 8px; min-width: 55px; }
+      .bar-track { height: 26px; }
+
+      .result-fv { font-size: 40px; }
+      .chart-wrap { padding: 16px; }
+
+      footer { padding: 16px; flex-direction: column; align-items: flex-start; gap: 10px; }
+      footer .logo-slash { width: 14px; height: 22px; }
+      footer .disclaimer { font-size: 10px; color: #333; }
+
+      .step-dots { padding: 14px 0 0; }
+    }
+
+    @media (min-width: 481px) and (max-width: 768px) {
+      header { padding: 20px 24px; }
+      .content, .results-content { padding-left: 24px; padding-right: 24px; }
+      .cards { grid-template-columns: 1fr; }
+      footer { padding: 20px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 1 — LANDING / MODE SELECT
+═════════════════════════════════════════════════ -->
+<div id="screen-1" class="screen active">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+
+  <div class="content" style="text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1;">
+    <div class="hero-tag">Инвестиционный калькулятор</div>
+    <h1 class="screen-title" style="text-align:center; margin-bottom:12px;">
+      Рассчитайте путь<br>к <em>вашей цели</em>
+    </h1>
+    <p class="screen-subtitle" style="text-align:center;">
+      Введите параметры — получите персональный расчёт<br>и сравнение с альтернативами за 2 минуты
+    </p>
+
+    <div class="mode-selector" style="max-width:480px; width:100%;">
+      <button class="mode-btn active" data-mode="simple" onclick="selectMode('simple')">
+        <span class="mode-icon">⚡</span>
+        <span class="mode-title">Простой</span>
+        <span class="mode-desc">Быстрый расчёт за 3 шага</span>
+      </button>
+      <button class="mode-btn" data-mode="advanced" onclick="selectMode('advanced')">
+        <span class="mode-icon">🎯</span>
+        <span class="mode-title">Продвинутый</span>
+        <span class="mode-desc">Сценарии, инфляция, периодичность</span>
+      </button>
+    </div>
+
+    <button class="btn-primary" style="max-width:480px;" onclick="goToScreen(2)">
+      Начать расчёт →
+    </button>
+  </div>
+
+  <footer>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+    <p class="disclaimer">* Все расчёты носят ориентировочный характер и не являются гарантией доходности.</p>
+  </footer>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 2 — GOAL SELECTION
+═════════════════════════════════════════════════ -->
+<div id="screen-2" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+  <div class="screen-nav">
+    <button class="back-btn" onclick="goToScreen(1)">← Назад</button>
+    <span class="step-indicator">Шаг 1 из 3</span>
+  </div>
+  <div class="step-dots">
+    <div class="step-dot active"></div>
+    <div class="step-dot"></div>
+    <div class="step-dot"></div>
+  </div>
+
+  <div class="content">
+    <h2 class="screen-title">Какова ваша <em>цель?</em></h2>
+    <p class="screen-subtitle">Выберите — калькулятор адаптируется под ваш сценарий</p>
+
+    <div class="goals-grid">
+      <button class="goal-card" data-goal="квартира" onclick="selectGoal('квартира')">
+        <span class="goal-icon">🏠</span>
+        <span class="goal-title">Купить квартиру</span>
+      </button>
+      <button class="goal-card" data-goal="вложить" onclick="selectGoal('вложить')">
+        <span class="goal-icon">💰</span>
+        <span class="goal-title">Вложить деньги выгодно</span>
+      </button>
+      <button class="goal-card" data-goal="капитал" onclick="selectGoal('капитал')">
+        <span class="goal-icon">📈</span>
+        <span class="goal-title">Достичь капитала</span>
+      </button>
+      <button class="goal-card" data-goal="дети" onclick="selectGoal('дети')">
+        <span class="goal-icon">👶</span>
+        <span class="goal-title">Накопить детям</span>
+      </button>
+      <button class="goal-card" data-goal="старость" onclick="selectGoal('старость')">
+        <span class="goal-icon">🌅</span>
+        <span class="goal-title">Капитал к пенсии</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 3 — BASIC PARAMS
+═════════════════════════════════════════════════ -->
+<div id="screen-3" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+  <div class="screen-nav">
+    <button class="back-btn" onclick="goToScreen(2)">← Назад</button>
+    <span class="step-indicator">Шаг 2 из 3</span>
+  </div>
+  <div class="step-dots">
+    <div class="step-dot done"></div>
+    <div class="step-dot active"></div>
+    <div class="step-dot"></div>
+  </div>
+
+  <div class="content">
+    <h2 class="screen-title">Параметры <em>инвестиций</em></h2>
+    <p class="screen-subtitle" id="s3-subtitle">Заполните основные данные</p>
+
+    <!-- Currency -->
+    <div class="currency-toggle">
+      <button class="curr-btn active" data-currency="USD" onclick="selectCurrency('USD')">$ USD</button>
+      <button class="curr-btn" data-currency="KGS" onclick="selectCurrency('KGS')">с KGS</button>
+      <button class="curr-btn" data-currency="RUB" onclick="selectCurrency('RUB')">₽ RUB</button>
+    </div>
+
+    <!-- Start amount -->
+    <div class="field-group">
+      <label for="inp-start">Начальная сумма *</label>
+      <div class="input-wrap" id="wrap-start">
+        <span class="input-prefix" id="currency-symbol">$</span>
+        <input id="inp-start" class="field-input" type="number" min="0" placeholder="0" autocomplete="off" oninput="onStartChange()" />
+      </div>
+      <div class="field-error" id="err-start">Введите начальную сумму</div>
+    </div>
+
+    <!-- Monthly PMT -->
+    <div class="field-group">
+      <label for="inp-pmt">Ежемесячное пополнение <span class="optional">(необязательно)</span></label>
+      <div class="input-wrap">
+        <span class="input-prefix" id="currency-symbol-pmt">$</span>
+        <input id="inp-pmt" class="field-input" type="number" min="0" placeholder="0" autocomplete="off" oninput="onPmtChange()" />
+      </div>
+    </div>
+
+    <!-- Duration -->
+    <div class="field-group">
+      <label>Срок инвестирования</label>
+      <div class="dur-wrap">
+        <button class="dur-btn" data-months="6" onclick="selectTerm(6)">6 мес.</button>
+        <button class="dur-btn active" data-months="12" onclick="selectTerm(12)">1 год</button>
+        <button class="dur-btn" data-months="24" onclick="selectTerm(24)">2 года</button>
+        <button class="dur-btn" data-months="36" onclick="selectTerm(36)">3 года</button>
+        <button class="dur-btn" data-months="60" onclick="selectTerm(60)">5 лет</button>
+        <button class="dur-btn" data-months="120" onclick="selectTerm(120)">10 лет</button>
+      </div>
+    </div>
+
+    <!-- Target amount (shown for relevant goals) -->
+    <div class="field-group" id="target-group" style="display:none;">
+      <label for="inp-target" id="target-label">Целевая сумма</label>
+      <div class="input-wrap">
+        <span class="input-prefix" id="currency-symbol-target">$</span>
+        <input id="inp-target" class="field-input" type="number" min="0" placeholder="0" autocomplete="off" oninput="onTargetChange()" />
+      </div>
+      <div class="field-hint" id="ttg-hint"></div>
+    </div>
+
+    <button class="btn-primary" onclick="handleS3Next()">Рассчитать →</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 4 — ADVANCED PARAMS
+═════════════════════════════════════════════════ -->
+<div id="screen-4" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+  <div class="screen-nav">
+    <button class="back-btn" onclick="goToScreen(3)">← Назад</button>
+    <span class="step-indicator">Шаг 3 из 3</span>
+  </div>
+  <div class="step-dots">
+    <div class="step-dot done"></div>
+    <div class="step-dot done"></div>
+    <div class="step-dot active"></div>
+  </div>
+
+  <div class="content">
+    <h2 class="screen-title">Расширенные <em>настройки</em></h2>
+    <p class="screen-subtitle">Уточните параметры для более точного расчёта</p>
+
+    <!-- Rate slider -->
+    <div class="field-group">
+      <label>Ожидаемая доходность Elite Invest</label>
+      <div class="slider-wrap">
+        <input type="range" id="inp-rate" min="10" max="60" value="40" step="1" oninput="onRateChange()" />
+        <span class="slider-val" id="rate-display">40%</span>
+      </div>
+    </div>
+
+    <!-- Scenario -->
+    <div class="field-group">
+      <label>Сценарий расчёта</label>
+      <div class="scen-wrap">
+        <button class="scen-btn" data-scenario="conservative" onclick="selectScenario('conservative')">Консервативный (×0.7)</button>
+        <button class="scen-btn active" data-scenario="base" onclick="selectScenario('base')">Базовый (×1.0)</button>
+        <button class="scen-btn" data-scenario="optimistic" onclick="selectScenario('optimistic')">Оптимистичный (×1.2)</button>
+      </div>
+    </div>
+
+    <!-- Compounding frequency -->
+    <div class="field-group">
+      <label for="inp-freq">Частота начисления</label>
+      <select id="inp-freq" class="field-select" onchange="onFreqChange()">
+        <option value="12">Ежемесячно</option>
+        <option value="4">Ежеквартально</option>
+        <option value="2">Каждые полгода</option>
+        <option value="1">Ежегодно</option>
+      </select>
+    </div>
+
+    <!-- Inflation toggle -->
+    <div class="field-group">
+      <div class="toggle-row">
+        <span class="toggle-label-text">Учитывать инфляцию (7% в год)</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="inp-inflation" onchange="onInflationChange()" />
+          <span class="toggle-track"></span>
+          <span class="toggle-thumb"></span>
+        </label>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="goToScreen(5)">Показать результаты →</button>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 5 — RESULTS
+═════════════════════════════════════════════════ -->
+<div id="screen-5" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+  <div class="screen-nav">
+    <button class="back-btn" onclick="goBack5()">← Изменить параметры</button>
+  </div>
+
+  <div class="results-content">
+    <!-- Main result block (captured for PDF) -->
+    <div id="results-card">
+      <div class="result-hero">
+        <div class="result-goal-tag" id="r-goal-tag">Инвестиции</div>
+        <p class="result-label">Ваш капитал с Elite Invest</p>
+        <div class="result-fv" id="r-elite-fv">$0</div>
+        <p class="result-profit" id="r-elite-profit"></p>
+        <div class="result-extra" id="r-extra"></div>
+      </div>
+    </div>
+
+    <div class="section-label"><span>Сравнение инструментов</span></div>
+
+    <!-- 3 cards -->
+    <div class="cards">
+      <!-- Bank -->
+      <div class="card">
+        <div class="card-icon">🏦</div>
+        <div class="card-name">Банковский депозит</div>
+        <div class="card-rate">📈 15% годовых</div>
+        <div class="card-divider"></div>
+        <div class="card-profit-label">Ваша прибыль</div>
+        <div class="card-profit" id="r-bank-profit">—</div>
+        <div class="card-total">Итого: <strong id="r-bank-fv">—</strong></div>
+      </div>
+
+      <!-- Apartment -->
+      <div class="card">
+        <div class="card-icon">🏢</div>
+        <div class="card-name">Квартира под аренду</div>
+        <div class="card-rate">📈 8% аренда + 5% рост</div>
+        <div class="card-divider"></div>
+        <div class="card-profit-label">Ваша прибыль</div>
+        <div class="card-profit" id="r-apt-profit">—</div>
+        <div class="card-total">Итого: <strong id="r-apt-fv">—</strong></div>
+      </div>
+
+      <!-- Elite Invest featured -->
+      <div class="card featured">
+        <div class="card-icon">🚀</div>
+        <div class="card-name">Elite Invest</div>
+        <div class="card-rate" id="r-elite-rate">📈 40% годовых</div>
+        <div class="card-divider"></div>
+        <div class="card-profit-label">Ваша прибыль</div>
+        <div class="card-profit" id="r-elite-profit-card">—</div>
+        <div class="card-total">Итого: <strong id="r-elite-fv-card">—</strong></div>
+      </div>
+    </div>
+
+    <!-- Bar chart -->
+    <div class="bar-section">
+      <div class="bar-title">Сравнение прибыли</div>
+      <div class="bar-row bank">
+        <div class="bar-label">Банк. депозит</div>
+        <div class="bar-track"><div class="bar-fill" id="bar-bank" style="width:30%"><span id="bar-bank-lbl"></span></div></div>
+      </div>
+      <div class="bar-row apartment">
+        <div class="bar-label">Квартира</div>
+        <div class="bar-track"><div class="bar-fill" id="bar-apt" style="width:45%"><span id="bar-apt-lbl"></span></div></div>
+      </div>
+      <div class="bar-row elite">
+        <div class="bar-label">Elite Invest</div>
+        <div class="bar-track"><div class="bar-fill" id="bar-elite" style="width:100%"><span id="bar-elite-lbl"></span></div></div>
+      </div>
+    </div>
+
+    <!-- Scenario bars (advanced only) -->
+    <div id="scen-block" style="display:none;">
+      <div class="section-label"><span>Сценарии</span></div>
+      <div class="scenarios-wrap">
+        <div class="bar-title">Диапазон результатов Elite Invest</div>
+        <div class="scen-row conservative">
+          <div class="scen-row-label">Консервативный</div>
+          <div class="scen-track"><div class="scen-fill" id="scen-cons" style="width:60%"><span id="scen-cons-lbl"></span></div></div>
+        </div>
+        <div class="scen-row base">
+          <div class="scen-row-label">Базовый</div>
+          <div class="scen-track"><div class="scen-fill" id="scen-base" style="width:80%"><span id="scen-base-lbl"></span></div></div>
+        </div>
+        <div class="scen-row optimistic">
+          <div class="scen-row-label">Оптимистичный</div>
+          <div class="scen-track"><div class="scen-fill" id="scen-opt" style="width:100%"><span id="scen-opt-lbl"></span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart.js growth chart -->
+    <div class="chart-wrap">
+      <div class="chart-wrap-title">Рост капитала по времени</div>
+      <canvas id="growth-chart" height="280"></canvas>
+    </div>
+
+    <p class="disclaimer-sm">* Расчёты носят информационный характер и не являются публичной офертой или гарантией доходности. Итог зависит от параметров проекта и рыночных условий.</p>
+
+    <div class="results-actions">
+      <button class="btn-primary" onclick="goToScreen(6); trackEvent('pdf_cta_click');">
+        Получить персональный PDF →
+      </button>
+      <button class="btn-ghost" onclick="goToScreen(1)">Пересчитать</button>
+    </div>
+  </div>
+
+  <footer>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+    <p class="disclaimer">* Расчёты носят ориентировочный характер и не являются гарантией доходности.</p>
+  </footer>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 6 — PDF CTA
+═════════════════════════════════════════════════ -->
+<div id="screen-6" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+
+  <div class="content" style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+    <div class="cta-wrap">
+      <div class="cta-icon">📊</div>
+      <h2 class="cta-title">Ваш персональный<br>расчёт готов</h2>
+      <p class="cta-desc">
+        Скачайте PDF с полной аналитикой по вашему сценарию.<br>
+        Удобно показать партнёру или обсудить с консультантом.
+      </p>
+      <ul class="cta-bullets">
+        <li>Ваши результаты по всем 3 инструментам</li>
+        <li>График роста капитала</li>
+        <li>Сравнительный анализ сценариев</li>
+        <li>Рекомендации под вашу цель</li>
+      </ul>
+      <button class="btn-primary" onclick="goToScreen(7)">Получить PDF бесплатно →</button>
+      <button class="btn-ghost" onclick="goToScreen(5)">← Вернуться к результатам</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 7 — LEAD FORM
+═════════════════════════════════════════════════ -->
+<div id="screen-7" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+  <div class="screen-nav">
+    <button class="back-btn" onclick="goToScreen(6)">← Назад</button>
+  </div>
+
+  <div class="content">
+    <h2 class="screen-title">Куда отправить <em>расчёт?</em></h2>
+    <p class="form-subtitle">Мы не рассылаем спам — только ваш персональный PDF</p>
+
+    <form id="lead-form" onsubmit="handleLeadSubmit(event)">
+
+      <div class="field-group">
+        <label for="inp-phone">Номер телефона *</label>
+        <div class="input-wrap" id="wrap-phone">
+          <span class="input-prefix">🇰🇬</span>
+          <input
+            id="inp-phone"
+            class="field-input"
+            type="tel"
+            placeholder="+996 (___) __-__-__"
+            maxlength="19"
+            autocomplete="tel"
+            oninput="onPhoneInput(this)"
+          />
+        </div>
+        <div class="field-error" id="err-phone">Введите корректный номер: +996 (XXX) XX-XX-XX</div>
+      </div>
+
+      <div class="field-group">
+        <label for="inp-tg">Telegram <span class="optional">(необязательно)</span></label>
+        <div class="input-wrap">
+          <span class="input-prefix">@</span>
+          <input id="inp-tg" class="field-input" type="text" placeholder="username" autocomplete="off" style="font-size:16px;" />
+        </div>
+        <div class="field-hint">Напишите @username или оставьте пустым</div>
+      </div>
+
+      <p class="privacy-note">
+        Нажимая «Получить PDF», вы соглашаетесь с обработкой персональных данных
+        в соответствии с политикой конфиденциальности.
+      </p>
+
+      <button type="submit" class="btn-primary" id="btn-submit">
+        Получить PDF →
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SCREEN 8 — DOWNLOAD
+═════════════════════════════════════════════════ -->
+<div id="screen-8" class="screen">
+  <header>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+  </header>
+
+  <div class="content" style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+    <div class="download-wrap">
+      <div class="success-badge">✅</div>
+      <h2 class="download-title">Расчёт готов!</h2>
+      <p class="download-desc">Ваш персональный PDF-отчёт сформирован. Нажмите кнопку для скачивания.</p>
+
+      <button class="btn-primary" id="btn-download" onclick="triggerPdfDownload()">
+        ⬇ Скачать PDF
+      </button>
+
+      <div class="next-steps">
+        <p class="next-steps-label">Следующий шаг</p>
+        <p>Свяжитесь с нашим специалистом для бесплатной консультации по вашему сценарию.</p>
+        <a href="https://t.me/eliteinvest" class="tg-link" target="_blank" rel="noopener" onclick="trackEvent('tg_link_click');">
+          <span>✈</span> Написать в Telegram
+        </a>
+      </div>
+
+      <button class="btn-ghost" onclick="goToScreen(5)">← К результатам</button>
+    </div>
+  </div>
+
+  <footer>
+    <a class="logo" href="#">
+      <svg class="logo-slash" viewBox="0 0 22 36" fill="none"><line x1="18" y1="2" x2="4" y2="34" stroke="#E8541A" stroke-width="5" stroke-linecap="round"/></svg>
+      <div class="logo-text"><span>Elite</span><span>Invest</span></div>
+    </a>
+    <p class="disclaimer">* Расчёты носят ориентировочный характер и не являются гарантией доходности.</p>
+  </footer>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     JAVASCRIPT
+═════════════════════════════════════════════════ -->
+<script>
+// ── APP STATE ─────────────────────────────────────────────────────────────────
+const appState = {
+  mode:        'simple',
+  goal:        null,
+  currency:    'USD',
+  startAmount: 0,
+  monthlyPmt:  0,
+  termMonths:  12,
+  targetAmount: null,
+  // advanced
+  eliteRate:   0.40,
+  scenario:    'base',
+  compoundFreq: 12,
+  inflationAdj: false,
+  // computed
+  results:     null,
+  lead:        null
+};
+
+const CURRENCY_SYMBOLS = { USD: '$', KGS: 'с', RUB: '₽' };
+const SCENARIO_MULT    = { conservative: 0.7, base: 1.0, optimistic: 1.2 };
+const INFLATION_RATE   = 0.07;
+const BANK_RATE        = 0.15;
+const APT_YIELD        = 0.08;   // rental yield on principal
+const APT_APPRECIATION = 0.05;  // annual price growth
+
+const GOAL_LABELS = {
+  'квартира': '🏠 Купить квартиру',
+  'вложить':  '💰 Вложить деньги',
+  'капитал':  '📈 Достичь капитала',
+  'дети':     '👶 Накопить детям',
+  'старость': '🌅 Капитал к пенсии'
+};
+
+const GOAL_SUBTITLES = {
+  'квартира': 'Посчитайте, как быстрее накопить на квартиру',
+  'вложить':  'Сравните доходность разных инструментов',
+  'капитал':  'Рассчитайте путь к нужному капиталу',
+  'дети':     'Накопите квартиру или капитал к 18 годам ребёнка',
+  'старость': 'Постройте план капитала к пенсии'
+};
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+let growthChart = null;
+
+function goToScreen(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + n).classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  if (n === 5) {
+    computeResults();
+    renderResults();
+    renderChart();
+    trackEvent('calc_complete', { goal: appState.goal, elite_fv: appState.results?.fv?.elite });
+  }
+}
+
+function goBack5() {
+  goToScreen(appState.mode === 'advanced' ? 4 : 3);
+}
+
+// ── MODE / GOAL / CURRENCY SELECTORS ─────────────────────────────────────────
+function selectMode(mode) {
+  appState.mode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.mode === mode)
+  );
+  trackEvent('mode_selected', { mode });
+}
+
+function selectGoal(goal) {
+  appState.goal = goal;
+  document.querySelectorAll('.goal-card').forEach(b =>
+    b.classList.toggle('active', b.dataset.goal === goal)
+  );
+  // Update screen 3 subtitle
+  document.getElementById('s3-subtitle').textContent = GOAL_SUBTITLES[goal] || 'Заполните основные данные';
+  // Show/hide target field
+  const showTarget = ['квартира', 'капитал', 'дети', 'старость'].includes(goal);
+  document.getElementById('target-group').style.display = showTarget ? 'block' : 'none';
+  if (goal === 'дети' || goal === 'старость') {
+    document.getElementById('target-label').textContent = goal === 'дети'
+      ? 'Целевая сумма (например, стоимость квартиры)'
+      : 'Желаемый капитал к пенсии';
+  } else {
+    document.getElementById('target-label').textContent = 'Целевая сумма';
+  }
+  trackEvent('goal_selected', { goal });
+  goToScreen(3);
+}
+
+function selectCurrency(c) {
+  appState.currency = c;
+  const sym = CURRENCY_SYMBOLS[c];
+  document.querySelectorAll('.curr-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.currency === c)
+  );
+  document.getElementById('currency-symbol').textContent = sym;
+  document.getElementById('currency-symbol-pmt').textContent = sym;
+  document.getElementById('currency-symbol-target').textContent = sym;
+  updateTTGHint();
+}
+
+function selectTerm(months) {
+  appState.termMonths = months;
+  document.querySelectorAll('.dur-btn').forEach(b =>
+    b.classList.toggle('active', parseInt(b.dataset.months) === months)
+  );
+  updateTTGHint();
+}
+
+// ── INPUT HANDLERS ────────────────────────────────────────────────────────────
+function onStartChange() {
+  const v = parseFloat(document.getElementById('inp-start').value);
+  appState.startAmount = isNaN(v) || v < 0 ? 0 : v;
+  updateTTGHint();
+}
+
+function onPmtChange() {
+  const v = parseFloat(document.getElementById('inp-pmt').value);
+  appState.monthlyPmt = isNaN(v) || v < 0 ? 0 : v;
+  updateTTGHint();
+}
+
+function onTargetChange() {
+  const v = parseFloat(document.getElementById('inp-target').value);
+  appState.targetAmount = isNaN(v) || v <= 0 ? null : v;
+  updateTTGHint();
+}
+
+function updateTTGHint() {
+  const hint = document.getElementById('ttg-hint');
+  if (!hint) return;
+  if (!appState.targetAmount || appState.startAmount <= 0) { hint.textContent = ''; return; }
+  const r = appState.eliteRate * SCENARIO_MULT[appState.scenario];
+  const months = calcTimeToGoal(appState.targetAmount, appState.startAmount, appState.monthlyPmt, r, appState.compoundFreq);
+  if (months === Infinity) {
+    hint.textContent = 'При текущих параметрах цель недостижима. Увеличьте взнос или срок.';
+  } else if (months <= 0) {
+    hint.textContent = 'Начальная сумма уже покрывает цель!';
+  } else {
+    const yrs = Math.floor(months / 12);
+    const mos = Math.round(months % 12);
+    const parts = [];
+    if (yrs > 0) parts.push(yrs + ' ' + pluralYear(yrs));
+    if (mos > 0) parts.push(mos + ' ' + pluralMonth(mos));
+    hint.textContent = '→ При Elite Invest цель достижима примерно через ' + parts.join(' ');
+  }
+}
+
+// ── ADVANCED HANDLERS ─────────────────────────────────────────────────────────
+function onRateChange() {
+  const v = parseInt(document.getElementById('inp-rate').value);
+  appState.eliteRate = v / 100;
+  document.getElementById('rate-display').textContent = v + '%';
+  updateTTGHint();
+}
+
+function selectScenario(s) {
+  appState.scenario = s;
+  document.querySelectorAll('.scen-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.scenario === s)
+  );
+  updateTTGHint();
+}
+
+function onFreqChange() {
+  appState.compoundFreq = parseInt(document.getElementById('inp-freq').value);
+}
+
+function onInflationChange() {
+  appState.inflationAdj = document.getElementById('inp-inflation').checked;
+}
+
+// ── SCREEN 3 NEXT ─────────────────────────────────────────────────────────────
+function handleS3Next() {
+  const errEl = document.getElementById('err-start');
+  const wrapEl = document.getElementById('wrap-start');
+  if (appState.startAmount <= 0) {
+    errEl.classList.add('visible');
+    wrapEl.classList.add('error');
+    document.getElementById('inp-start').focus();
+    return;
+  }
+  errEl.classList.remove('visible');
+  wrapEl.classList.remove('error');
+  trackEvent('calc_params_set', { amount: appState.startAmount, term: appState.termMonths, goal: appState.goal });
+  goToScreen(appState.mode === 'advanced' ? 4 : 5);
+}
+
+// ── MATH ENGINE ───────────────────────────────────────────────────────────────
+/**
+ * Future Value: FV = P(1+r/n)^(nt) + PMT × [(1+r/n)^(nt)-1]/(r/n)
+ */
+function calcFV(P, PMT, r, n, t) {
+  if (t <= 0) return P;
+  if (r === 0) return P + PMT * n * t;
+  const factor = Math.pow(1 + r / n, n * t);
+  return P * factor + PMT * (factor - 1) / (r / n);
+}
+
+/**
+ * Apartment FV: principal appreciates + rental income compounds + extra PMT at rental yield
+ */
+function calcApartmentFV(P, PMT, t) {
+  if (t <= 0) return P;
+  // Principal appreciation
+  const appreciatedP = P * Math.pow(1 + APT_APPRECIATION, t);
+  // Annual rental income (based on original P) reinvested at APT_YIELD
+  const annualRental = P * APT_YIELD;
+  const rentalFV = t > 0 ? annualRental * (Math.pow(1 + APT_YIELD, t) - 1) / APT_YIELD : 0;
+  // Monthly PMT also compounds at bank rate (conservative for apartment scenario)
+  const pmtFV = calcFV(0, PMT, BANK_RATE, 12, t);
+  return appreciatedP + rentalFV + pmtFV;
+}
+
+/**
+ * Required monthly PMT to reach targetFV
+ */
+function calcRequiredPMT(targetFV, P, r, n, t) {
+  if (t <= 0) return Infinity;
+  if (r === 0) return (targetFV - P) / (n * t);
+  const factor = Math.pow(1 + r / n, n * t);
+  if (factor <= 1) return Infinity;
+  const needed = (targetFV - P * factor) * (r / n) / (factor - 1);
+  return needed;
+}
+
+/**
+ * Months to reach targetFV — binary search (max 600 months = 50 years)
+ */
+function calcTimeToGoal(targetFV, P, PMT, r, n) {
+  if (!targetFV || targetFV <= 0) return 0;
+  if (P >= targetFV) return 0;
+  // Check if reachable at all
+  if (calcFV(P, PMT, r, n, 50) < targetFV) return Infinity;
+  let lo = 0, hi = 600;
+  for (let i = 0; i < 64; i++) {
+    const mid = (lo + hi) / 2;
+    if (calcFV(P, PMT, r, n, mid / 12) >= targetFV) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+
+function realValue(nominal, t) {
+  return nominal / Math.pow(1 + INFLATION_RATE, t);
+}
+
+function eliteEffectiveRate() {
+  return appState.eliteRate * SCENARIO_MULT[appState.scenario];
+}
+
+/**
+ * Build yearly data series for Chart.js
+ */
+function buildSeries(P, PMT, termMonths, n) {
+  const totalYears = termMonths / 12;
+  const steps = Math.max(Math.min(Math.ceil(totalYears * 4), 40), 4); // quarterly steps, max 40
+  const series = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * totalYears;
+    let elite = calcFV(P, PMT, eliteEffectiveRate(), n, t);
+    let bank  = calcFV(P, PMT, BANK_RATE, 12, t);
+    let apt   = calcApartmentFV(P, PMT, t);
+    if (appState.inflationAdj) {
+      elite = realValue(elite, t);
+      bank  = realValue(bank, t);
+      apt   = realValue(apt, t);
+    }
+    series.push({
+      t,
+      label: t === 0 ? 'Сейчас' : (t >= 1 ? Math.round(t) + ' лет' : Math.round(t * 12) + ' мес.'),
+      elite, bank, apt,
+      invested: P + PMT * 12 * t
+    });
+  }
+  return series;
+}
+
+/**
+ * Master compute — writes appState.results
+ */
+function computeResults() {
+  const { startAmount: P, monthlyPmt: PMT, termMonths, targetAmount, compoundFreq: n } = appState;
+  const t = termMonths / 12;
+  const r = eliteEffectiveRate();
+
+  let fvElite = calcFV(P, PMT, r, n, t);
+  let fvBank  = calcFV(P, PMT, BANK_RATE, 12, t);
+  let fvApt   = calcApartmentFV(P, PMT, t);
+
+  if (appState.inflationAdj) {
+    fvElite = realValue(fvElite, t);
+    fvBank  = realValue(fvBank, t);
+    fvApt   = realValue(fvApt, t);
+  }
+
+  const invested = P + PMT * termMonths;
+
+  // Time to goal
+  let ttgMonths  = null;
+  let reqPmt     = null;
+  if (targetAmount && targetAmount > P) {
+    ttgMonths = calcTimeToGoal(targetAmount, P, PMT, r, n);
+    if (PMT === 0 && ttgMonths !== Infinity) {
+      reqPmt = calcRequiredPMT(targetAmount, P, r, n, t);
+    }
+  }
+
+  // Scenario FVs
+  const scenFVs = {
+    conservative: calcFV(P, PMT, appState.eliteRate * 0.7, n, t),
+    base:         calcFV(P, PMT, appState.eliteRate * 1.0, n, t),
+    optimistic:   calcFV(P, PMT, appState.eliteRate * 1.2, n, t)
+  };
+
+  appState.results = {
+    fv: { elite: fvElite, bank: fvBank, apt: fvApt },
+    invested,
+    ttgMonths,
+    reqPmt,
+    scenFVs,
+    series: buildSeries(P, PMT, termMonths, n),
+    termMonths, P, PMT
+  };
+}
+
+// ── RENDER RESULTS ────────────────────────────────────────────────────────────
+function renderResults() {
+  const { fv, invested, ttgMonths, reqPmt, scenFVs } = appState.results;
+  const { targetAmount, goal, currency, termMonths, eliteRate } = appState;
+  const sym = CURRENCY_SYMBOLS[currency];
+
+  const fmt = (n) => sym + Math.round(n).toLocaleString('ru-RU');
+
+  // Goal tag
+  document.getElementById('r-goal-tag').textContent = GOAL_LABELS[goal] || 'Инвестиции';
+
+  // Hero
+  const heroFV = document.getElementById('r-elite-fv');
+  heroFV.textContent = fmt(fv.elite);
+  animate(heroFV);
+
+  const profit = fv.elite - invested;
+  const pct    = invested > 0 ? ((profit / invested) * 100).toFixed(0) : 0;
+  document.getElementById('r-elite-profit').innerHTML =
+    `Вложено: ${fmt(invested)} · Прибыль: <strong>+${fmt(profit)} (+${pct}%)</strong>`;
+
+  // Extra block (time to goal / required PMT)
+  const extraEl = document.getElementById('r-extra');
+  let extraHTML = '';
+  if (ttgMonths !== null) {
+    if (ttgMonths === Infinity) {
+      extraHTML += `<p>⚠️ При текущих параметрах цель <strong>${fmt(targetAmount)}</strong> недостижима. Увеличьте взнос или срок.</p>`;
+    } else if (ttgMonths <= 0) {
+      extraHTML += `<p>✅ Начальной суммы уже достаточно для достижения цели!</p>`;
+    } else {
+      const yrs = Math.floor(ttgMonths / 12);
+      const mos = Math.round(ttgMonths % 12);
+      const parts = [];
+      if (yrs > 0) parts.push(yrs + ' ' + pluralYear(yrs));
+      if (mos > 0) parts.push(mos + ' ' + pluralMonth(mos));
+      extraHTML += `<p>🎯 Цель <strong>${fmt(targetAmount)}</strong> достижима за <strong>${parts.join(' ')}</strong></p>`;
+    }
+  }
+  if (reqPmt !== null && reqPmt > 0) {
+    extraHTML += `<p>💡 Для достижения цели за выбранный срок нужно пополнять: <strong>${fmt(reqPmt)}/мес.</strong></p>`;
+  }
+
+  // Goal-specific conclusion
+  const termYears = (termMonths / 12).toFixed(termMonths % 12 === 0 ? 0 : 1);
+  if (goal === 'вложить') {
+    extraHTML += `<p>📊 За ${termYears} лет Elite Invest даёт в ${(fv.elite / Math.max(fv.bank, 1)).toFixed(1)}x больше, чем банковский депозит.</p>`;
+  }
+  extraEl.innerHTML = extraHTML;
+  extraEl.style.display = extraHTML ? 'block' : 'none';
+
+  // Rate badge
+  document.getElementById('r-elite-rate').textContent = `📈 ${Math.round(eliteEffectiveRate() * 100)}% годовых`;
+
+  // 3 cards
+  const profitBank = fv.bank - invested;
+  const profitApt  = fv.apt  - invested;
+  const profitElite = fv.elite - invested;
+
+  document.getElementById('r-bank-profit').textContent    = fmt(profitBank);
+  document.getElementById('r-bank-fv').textContent        = fmt(fv.bank);
+  document.getElementById('r-apt-profit').textContent     = fmt(profitApt);
+  document.getElementById('r-apt-fv').textContent         = fmt(fv.apt);
+  document.getElementById('r-elite-profit-card').textContent = fmt(profitElite);
+  document.getElementById('r-elite-fv-card').textContent  = fmt(fv.elite);
+  animate(document.getElementById('r-bank-profit'));
+  animate(document.getElementById('r-apt-profit'));
+  animate(document.getElementById('r-elite-profit-card'));
+
+  // Bar chart
+  const maxProfit = Math.max(profitBank, profitApt, profitElite, 1);
+  const barBank  = Math.max((profitBank  / maxProfit) * 100, 6);
+  const barApt   = Math.max((profitApt   / maxProfit) * 100, 6);
+  const barElite = Math.max((profitElite / maxProfit) * 100, 6);
+
+  document.getElementById('bar-bank').style.width = barBank + '%';
+  document.getElementById('bar-apt').style.width  = barApt  + '%';
+  document.getElementById('bar-elite').style.width = barElite + '%';
+  document.getElementById('bar-bank-lbl').textContent  = fmt(profitBank);
+  document.getElementById('bar-apt-lbl').textContent   = fmt(profitApt);
+  document.getElementById('bar-elite-lbl').textContent = fmt(profitElite);
+
+  // Scenarios (advanced mode)
+  const scenBlock = document.getElementById('scen-block');
+  if (appState.mode === 'advanced') {
+    scenBlock.style.display = 'block';
+    const maxScen = Math.max(...Object.values(scenFVs), 1);
+    const scenKeys = ['conservative', 'base', 'optimistic'];
+    const scenIds  = ['scen-cons', 'scen-base', 'scen-opt'];
+    const scenLbls = ['scen-cons-lbl', 'scen-base-lbl', 'scen-opt-lbl'];
+    scenKeys.forEach((k, i) => {
+      const pct = Math.max((scenFVs[k] / maxScen) * 100, 6);
+      document.getElementById(scenIds[i]).style.width = pct + '%';
+      document.getElementById(scenLbls[i]).textContent = fmt(scenFVs[k]);
+    });
+  } else {
+    scenBlock.style.display = 'none';
+  }
+}
+
+// ── CHART.JS ──────────────────────────────────────────────────────────────────
+function renderChart() {
+  const { series } = appState.results;
+  const { currency } = appState;
+  const sym = CURRENCY_SYMBOLS[currency];
+
+  const ctx = document.getElementById('growth-chart').getContext('2d');
+  if (growthChart) { growthChart.destroy(); growthChart = null; }
+
+  // Reduce label density for readability
+  const maxLabels = 8;
+  const step = Math.max(1, Math.ceil(series.length / maxLabels));
+  const labels    = series.map((s, i) => i % step === 0 ? s.label : '');
+
+  growthChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Elite Invest',
+          data: series.map(s => Math.round(s.elite)),
+          borderColor: '#E8541A',
+          backgroundColor: 'rgba(232,84,26,0.08)',
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2.5,
+          pointRadius: series.length <= 16 ? 3 : 0,
+          pointHoverRadius: 5
+        },
+        {
+          label: 'Квартира под аренду',
+          data: series.map(s => Math.round(s.apt)),
+          borderColor: '#555',
+          backgroundColor: 'transparent',
+          tension: 0.4,
+          borderWidth: 1.5,
+          borderDash: [6, 3],
+          pointRadius: 0,
+          pointHoverRadius: 4
+        },
+        {
+          label: 'Банковский депозит',
+          data: series.map(s => Math.round(s.bank)),
+          borderColor: '#444',
+          backgroundColor: 'transparent',
+          tension: 0.4,
+          borderWidth: 1.5,
+          borderDash: [3, 3],
+          pointRadius: 0,
+          pointHoverRadius: 4
+        },
+        {
+          label: 'Вложено',
+          data: series.map(s => Math.round(s.invested)),
+          borderColor: '#2a2a2a',
+          backgroundColor: 'transparent',
+          tension: 0,
+          borderWidth: 1,
+          borderDash: [2, 4],
+          pointRadius: 0
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#666', font: { size: 12 }, boxWidth: 18, padding: 16 }
+        },
+        tooltip: {
+          backgroundColor: '#1a1a1a',
+          borderColor: '#333',
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${sym}${ctx.parsed.y.toLocaleString('ru-RU')}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#555', font: { size: 11 }, maxRotation: 0 },
+          grid:  { color: '#1a1a1a' }
+        },
+        y: {
+          ticks: {
+            color: '#555', font: { size: 11 },
+            callback: v => sym + (v >= 1000000 ? (v/1000000).toFixed(1)+'M' : v >= 1000 ? (v/1000).toFixed(0)+'k' : v)
+          },
+          grid: { color: '#1a1a1a' }
+        }
+      }
+    }
+  });
+}
+
+// ── PHONE MASK ────────────────────────────────────────────────────────────────
+function onPhoneInput(el) {
+  const raw    = el.value;
+  const digits = raw.replace(/\D/g, '');
+  // Strip leading 996 if user typed it
+  let local = digits;
+  if (local.startsWith('996')) local = local.slice(3);
+  else if (local.startsWith('0'))  local = local.slice(1);
+  local = local.slice(0, 9);
+
+  let out = '+996';
+  if (local.length > 0) out += ' (' + local.slice(0, 3);
+  if (local.length >= 3) out += ') ' + local.slice(3, 5);
+  if (local.length >= 5) out += '-' + local.slice(5, 7);
+  if (local.length >= 7) out += '-' + local.slice(7, 9);
+
+  el.value = out;
+
+  // Clear error when valid
+  if (isValidPhone(out)) {
+    document.getElementById('err-phone').classList.remove('visible');
+    document.getElementById('wrap-phone').classList.remove('error');
+  }
+}
+
+function isValidPhone(formatted) {
+  const digits = formatted.replace(/\D/g, '');
+  return /^996\d{9}$/.test(digits);
+}
+
+// ── LEAD SUBMIT ───────────────────────────────────────────────────────────────
+async function handleLeadSubmit(e) {
+  e.preventDefault();
+
+  const phone    = document.getElementById('inp-phone').value;
+  const telegram = document.getElementById('inp-tg').value.trim();
+  const errPhone = document.getElementById('err-phone');
+  const wrapPhone = document.getElementById('wrap-phone');
+  const btn      = document.getElementById('btn-submit');
+
+  if (!isValidPhone(phone)) {
+    errPhone.classList.add('visible');
+    wrapPhone.classList.add('error');
+    document.getElementById('inp-phone').focus();
+    return;
+  }
+  errPhone.classList.remove('visible');
+  wrapPhone.classList.remove('error');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Отправка...';
+
+  const { fv, P, PMT, termMonths } = appState.results || {};
+
+  try {
+    const res = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone:            phone.replace(/\D/g, ''),
+        telegram:         telegram || null,
+        goal:             appState.goal,
+        mode:             appState.mode,
+        currency:         appState.currency,
+        start_amount:     P,
+        monthly_pmt:      PMT,
+        term_months:      termMonths,
+        target_amount:    appState.targetAmount,
+        result_elite:     fv?.elite,
+        result_bank:      fv?.bank,
+        result_apartment: fv?.apt
+      })
+    });
+
+    const data = await res.json();
+    if (data.ok) {
+      appState.lead = { phone, telegram, id: data.lead_id };
+      trackEvent('lead_submitted', { goal: appState.goal, lead_id: data.lead_id });
+      goToScreen(8);
+    } else {
+      btn.innerHTML = 'Попробовать снова →';
+      btn.disabled = false;
+      if (data.error === 'rate_limit') {
+        errPhone.textContent = 'Слишком много попыток. Повторите через час.';
+        errPhone.classList.add('visible');
+      }
+    }
+  } catch {
+    btn.innerHTML = 'Ошибка сети — повторить →';
+    btn.disabled = false;
+  }
+}
+
+// ── PDF GENERATION ────────────────────────────────────────────────────────────
+async function triggerPdfDownload() {
+  const btn = document.getElementById('btn-download');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Формируем PDF...';
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const { fv, invested, scenFVs, termMonths, P, PMT } = appState.results;
+    const { goal, currency, eliteRate, mode, targetAmount } = appState;
+    const sym = CURRENCY_SYMBOLS[currency];
+    const fmt = n => sym + Math.round(n).toLocaleString('ru-RU');
+    const dateStr = new Date().toLocaleDateString('ru-RU');
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = pdf.internal.pageSize.getWidth();
+    const H = pdf.internal.pageSize.getHeight();
+    const M = 20; // margin
+
+    // ── Page 1 ──────────────────────────────────────────────
+    // Background
+    pdf.setFillColor(10, 10, 10);
+    pdf.rect(0, 0, W, H, 'F');
+
+    // Orange accent bar
+    pdf.setFillColor(232, 84, 26);
+    pdf.rect(0, 0, W, 4, 'F');
+
+    // Header
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(26);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('ELITE INVEST', M, 22);
+
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(136, 136, 136);
+    pdf.text('Персональный инвестиционный расчёт', M, 30);
+    pdf.text('Дата: ' + dateStr, W - M, 30, { align: 'right' });
+
+    // Divider
+    pdf.setDrawColor(36, 36, 36);
+    pdf.setLineWidth(0.3);
+    pdf.line(M, 36, W - M, 36);
+
+    // Capture results card from DOM
+    const resultsEl = document.getElementById('results-card');
+    const canvas = await html2canvas(resultsEl, {
+      backgroundColor: '#0a0a0a',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+    const imgData = canvas.toDataURL('image/png');
+    const imgW = W - M * 2;
+    const imgH = Math.min((canvas.height / canvas.width) * imgW, 80);
+    pdf.addImage(imgData, 'PNG', M, 42, imgW, imgH);
+
+    let y = 42 + imgH + 10;
+
+    // Divider
+    pdf.setDrawColor(36, 36, 36);
+    pdf.line(M, y, W - M, y);
+    y += 8;
+
+    // Parameters summary
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text('ПАРАМЕТРЫ РАСЧЁТА', M, y);
+    y += 6;
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(170, 170, 170);
+    const params = [
+      ['Цель:', GOAL_LABELS[goal] || goal],
+      ['Режим:', mode === 'advanced' ? 'Продвинутый' : 'Простой'],
+      ['Валюта:', currency],
+      ['Начальная сумма:', fmt(P)],
+      ['Ежемесячное пополнение:', fmt(PMT)],
+      ['Срок:', termMonths + ' мес. (' + (termMonths/12).toFixed(1) + ' лет)'],
+      ['Ставка Elite Invest:', Math.round(eliteRate * 100) + '% годовых'],
+      ...(targetAmount ? [['Целевая сумма:', fmt(targetAmount)]] : [])
+    ];
+    params.forEach(([k, v]) => {
+      pdf.setTextColor(136, 136, 136);
+      pdf.text(k, M, y);
+      pdf.setTextColor(200, 200, 200);
+      pdf.text(v, M + 60, y);
+      y += 5.5;
+    });
+
+    y += 4;
+    pdf.setDrawColor(36, 36, 36);
+    pdf.line(M, y, W - M, y);
+    y += 8;
+
+    // Results comparison table
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(232, 84, 26);
+    pdf.text('СРАВНЕНИЕ РЕЗУЛЬТАТОВ', M, y);
+    y += 6;
+
+    const profit = fv.elite - invested;
+    const rows = [
+      ['Инструмент', 'Итоговая сумма', 'Прибыль'],
+      ['Elite Invest', fmt(fv.elite), fmt(profit)],
+      ['Банковский депозит', fmt(fv.bank), fmt(fv.bank - invested)],
+      ['Квартира под аренду', fmt(fv.apt), fmt(fv.apt - invested)]
+    ];
+
+    const colWidths = [70, 45, 45];
+    const colX = [M, M + colWidths[0], M + colWidths[0] + colWidths[1]];
+
+    rows.forEach((row, ri) => {
+      if (ri === 0) {
+        pdf.setTextColor(100, 100, 100);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8);
+      } else {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        if (ri === 1) {
+          pdf.setTextColor(232, 84, 26); // highlight elite
+        } else {
+          pdf.setTextColor(170, 170, 170);
+        }
+      }
+      row.forEach((cell, ci) => pdf.text(cell, colX[ci], y));
+      y += ri === 0 ? 5 : 6.5;
+    });
+
+    // Scenarios (advanced)
+    if (mode === 'advanced') {
+      y += 4;
+      pdf.setDrawColor(36, 36, 36);
+      pdf.line(M, y, W - M, y);
+      y += 8;
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(232, 84, 26);
+      pdf.text('СЦЕНАРИИ ДОХОДНОСТИ', M, y);
+      y += 6;
+      const scenRows = [
+        ['Консервативный (×0.7):', fmt(scenFVs.conservative)],
+        ['Базовый (×1.0):', fmt(scenFVs.base)],
+        ['Оптимистичный (×1.2):', fmt(scenFVs.optimistic)]
+      ];
+      scenRows.forEach(([k, v]) => {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(136, 136, 136);
+        pdf.text(k, M, y);
+        pdf.setTextColor(200, 200, 200);
+        pdf.text(v, M + 75, y);
+        y += 5.5;
+      });
+    }
+
+    // Disclaimer
+    pdf.setPage(1);
+    pdf.setFontSize(7);
+    pdf.setTextColor(60, 60, 60);
+    pdf.setFont('helvetica', 'normal');
+    const disclaimer = '* Расчёты носят информационный характер и не являются публичной офертой, гарантией доходности или финансовым советом. Итоговый результат зависит от условий конкретного проекта и рыночной конъюнктуры.';
+    const discLines = pdf.splitTextToSize(disclaimer, W - M * 2);
+    pdf.text(discLines, M, H - 10);
+
+    // ── Page 2: Chart ─────────────────────────────────────────────────────────
+    const chartCanvas = document.getElementById('growth-chart');
+    if (chartCanvas) {
+      pdf.addPage();
+      pdf.setFillColor(10, 10, 10);
+      pdf.rect(0, 0, W, H, 'F');
+      pdf.setFillColor(232, 84, 26);
+      pdf.rect(0, 0, W, 4, 'F');
+
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('ГРАФИК РОСТА КАПИТАЛА', M, 22);
+
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(136, 136, 136);
+      pdf.text('Динамика по трём инструментам за весь период', M, 30);
+
+      const chartImg = chartCanvas.toDataURL('image/png');
+      const cImgW = W - M * 2;
+      const cImgH = (chartCanvas.height / chartCanvas.width) * cImgW;
+      pdf.addImage(chartImg, 'PNG', M, 38, cImgW, Math.min(cImgH, 120));
+
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(232, 84, 26);
+      pdf.text('Следующий шаг', M, 175);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(200, 200, 200);
+      pdf.text('Свяжитесь с нашим специалистом для бесплатной консультации', M, 183);
+      pdf.text('по вашему сценарию инвестирования.', M, 190);
+
+      pdf.setTextColor(232, 84, 26);
+      pdf.text('Telegram: @eliteinvest', M, 200);
+
+      pdf.setFontSize(7);
+      pdf.setTextColor(60, 60, 60);
+      const discLines2 = pdf.splitTextToSize(disclaimer, W - M * 2);
+      pdf.text(discLines2, M, H - 10);
+    }
+
+    const dateFile = new Date().toISOString().slice(0, 10);
+    pdf.save(`EliteInvest_Расчёт_${dateFile}.pdf`);
+
+    trackEvent('pdf_downloaded', { goal: appState.goal });
+    btn.innerHTML = '⬇ Скачать снова';
+    btn.disabled = false;
+
+  } catch (err) {
+    console.error('PDF error:', err);
+    btn.innerHTML = '⚠ Ошибка — повторить';
+    btn.disabled = false;
+  }
+}
+
+// ── ANALYTICS ─────────────────────────────────────────────────────────────────
+function trackEvent(name, params = {}) {
+  console.log('[Analytics]', name, params);
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event: name, ...params });
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function animate(el) {
+  el.classList.remove('animating');
+  void el.offsetWidth;
+  el.classList.add('animating');
+}
+
+function pluralYear(n) {
+  const abs = Math.abs(n) % 100;
+  const abs1 = abs % 10;
+  if (abs >= 11 && abs <= 19) return 'лет';
+  if (abs1 === 1) return 'год';
+  if (abs1 >= 2 && abs1 <= 4) return 'года';
+  return 'лет';
+}
+
+function pluralMonth(n) {
+  const abs = Math.abs(n) % 100;
+  const abs1 = abs % 10;
+  if (abs >= 11 && abs <= 19) return 'месяцев';
+  if (abs1 === 1) return 'месяц';
+  if (abs1 >= 2 && abs1 <= 4) return 'месяца';
+  return 'месяцев';
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+trackEvent('calc_open');
+</script>
+</body>
+</html>
